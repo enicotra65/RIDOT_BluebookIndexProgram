@@ -1,15 +1,12 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>PDF Part and Section Selector</title>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
+{% extends "base.html" %}
+
+{% block title %}RIDOT Bluebook Index Program{% endblock %}
+
+{% block content %}
 <div class="dropdown-container">
     <center><h1>RIDOT Bluebook Index</h1></center>
     <form id="pdf-form">
+        <!-- Dropdown for selecting PDF -->
         <label for="pdf-select">Select Bluebook:</label>
         <select id="pdf-select" name="pdf_file">
             <option value="">--Select PDF--</option>
@@ -17,113 +14,79 @@
             <option value="{{ pdf_info.file }}">{{ pdf_info.name }}</option>
             {% endfor %}
         </select>
+
+        <br><br>
+        {% set selects = [
+            {'id': 'part', 'label': 'Part'},
+            {'id': 'section', 'label': 'Section'},
+            {'id': 'subsection', 'label': 'Subsection'}
+        ] %}
         
-        <br><br>
-        <label for="part-select" id="part-label" class="disabled-label">Select Part:</label>
-        <select id="part-select" name="part_title" disabled>
-            <option value="">--Select Part--</option>
+        <!-- Loop to generate select dropdowns for Part, Section, and Subsection -->
+        {% for select in selects %}
+        <label for="{{ select.id }}-select" id="{{ select.id }}-label" class="disabled-label">Select {{ select.label }}:</label>
+        <select id="{{ select.id }}-select" name="{{ select.id }}_title" disabled>
+            <option value="">--Select {{ select.label }}--</option>
         </select>
         <br><br>
-        <label for="section-select" id="section-label" class="disabled-label">Select Section:</label>
-        <select id="section-select" name="section_title" disabled>
-            <option value="">--Select Section--</option>
-        </select>
-        <br><br>
-        <label for="subsection-select" id="subsection-label" class="disabled-label">Select Subsection:</label>
-        <select id="subsection-select" name="subsection_title" disabled>
-            <option value="">--Select Subsection--</option>
-        </select>
+        {% endfor %}
     </form>
 </div>
+
+<!-- JavaScript -->
 <script>
     $(document).ready(function () {
+        // Function to reset a select dropdown and its label
+        const resetSelect = (selectId, labelId) => {
+            $(selectId).empty().prop('disabled', true).append($('<option>', { value: '', text: '--Select--' }));
+            $(labelId).addClass('disabled-label');
+        };
+
+        // Function to populate a select dropdown
+        const populateSelect = (url, data, selectId, labelId, formatOption = item => item) => {
+            $.post(url, data, function(response) {
+                $(selectId).prop('disabled', false).empty().append($('<option>', { value: '', text: '--Select--' }));
+                response.forEach(item => $(selectId).append($('<option>', { value: formatOption(item), text: item })));
+                $(labelId).removeClass('disabled-label');
+            });
+        };
+
+        // Event handler for changing the PDF selection
         $('#pdf-select').change(function () {
-            let pdfFile = $(this).val();
+            const pdfFile = $(this).val();
+            // Reset all select dropdowns except PDF
+            ['#part-select', '#section-select', '#subsection-select'].forEach((id, idx) => resetSelect(id, `#${['part', 'section', 'subsection'][idx]}-label`));
             if (pdfFile) {
-                $('#part-select').prop('disabled', false);
-                $('#part-label').removeClass('disabled-label');
-                // Reset section and subsection selects
-                $('#section-select').empty().prop('disabled', true);
-                $('#section-label').addClass('disabled-label');
-                $('#subsection-select').empty().prop('disabled', true);
-                $('#subsection-label').addClass('disabled-label');
-                // Fetch part titles for the selected PDF
-                $.ajax({
-                    type: 'POST',
-                    url: '/get_part_titles',
-                    data: {pdf_file: pdfFile},
-                    success: function (data) {
-                        // Populate part select
-                        $('#part-select').empty().append($('<option>', {value: '', text: '--Select Part--'}));
-                        $.each(data, function (index, partTitle) {
-                            $('#part-select').append($('<option>', {value: partTitle, text: partTitle}));
-                        });
-                    }
-                });
-            } else {
-                $('#part-select').prop('disabled', true);
-                $('#part-label').addClass('disabled-label');
-                // Reset section and subsection selects
-                $('#section-select').empty().prop('disabled', true);
-                $('#section-label').addClass('disabled-label');
-                $('#subsection-select').empty().prop('disabled', true);
-                $('#subsection-label').addClass('disabled-label');
+                // Populate Part dropdown based on selected PDF
+                populateSelect('/get_part_titles', { pdf_file: pdfFile }, '#part-select', '#part-label');
             }
         });
 
+        // Event handler for changing the Part selection
         $('#part-select').change(function () {
-            let partTitle = $(this).val();
+            const partTitle = $(this).val();
+            // Reset Section and Subsection dropdowns
+            resetSelect('#section-select', '#section-label');
+            resetSelect('#subsection-select', '#subsection-label');
             if (partTitle) {
-                $('#section-select').prop('disabled', false);
-                $('#section-label').removeClass('disabled-label');
-                let pdfFile = $('#pdf-select').val();
-                // Fetch section titles for the selected part
-                $.ajax({
-                    type: 'POST',
-                    url: '/get_section_titles',
-                    data: {pdf_file: pdfFile, part_title: partTitle},
-                    success: function (data) {
-                        // Populate section select
-                        $('#section-select').empty().append($('<option>', {value: '', text: '--Select Section--'}));
-                        $.each(data, function (index, sectionTitle) {
-                            $('#section-select').append($('<option>', {value: sectionTitle.split(' ')[1], text: sectionTitle}));
-                        });
-                    }
-                });
-            } else {
-                $('#section-select').empty().prop('disabled', true);
-                $('#section-label').addClass('disabled-label');
-                // Reset subsection select
-                $('#subsection-select').empty().prop('disabled', true);
-                $('#subsection-label').addClass('disabled-label');
+                // Populate Section dropdown based on selected Part
+                const pdfFile = $('#pdf-select').val();
+                populateSelect('/get_section_titles', { pdf_file: pdfFile, part_title: partTitle }, '#section-select', '#section-label', item => item.split(' ')[1]);
             }
         });
 
+        // Event handler for changing the Section selection
         $('#section-select').change(function () {
-            let sectionNumber = $(this).val();
+            const sectionNumber = $(this).val();
+            // Reset Subsection dropdown
+            resetSelect('#subsection-select', '#subsection-label');
             if (sectionNumber) {
-                $('#subsection-select').prop('disabled', false);
-                $('#subsection-label').removeClass('disabled-label');
-                let pdfFile = $('#pdf-select').val();
-                // Fetch subsections for the selected section
-                $.ajax({
-                    type: 'POST',
-                    url: '/get_subsections',
-                    data: {pdf_file: pdfFile, section_number: sectionNumber},
-                    success: function (data) {
-                        // Populate subsection select
-                        $('#subsection-select').empty().append($('<option>', {value: '', text: '--Select Subsection--'}));
-                        $.each(data, function (index, subtopic) {
-                            $('#subsection-select').append($('<option>', {value: subtopic, text: subtopic}));
-                        });
-                    }
-                });
-            } else {
-                $('#subsection-select').empty().prop('disabled', true);
-                $('#subsection-label').addClass('disabled-label');
+                // Populate Subsection dropdown based on selected Section
+                const pdfFile = $('#pdf-select').val();
+                populateSelect('/get_subsections', { pdf_file: pdfFile, section_number: sectionNumber }, '#subsection-select', '#subsection-label');
             }
         });
     });
 </script>
-</body>
-</html>
+{% endblock %}
+

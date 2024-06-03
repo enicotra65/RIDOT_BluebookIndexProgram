@@ -2,9 +2,15 @@ import os
 import requests
 from urllib.parse import urlparse
 import re
+import json
 
 """
-This Page will fetch, download, and format the pdf's of the bluebooks from the website in "YYYY_MM" format
+This python file will download the files of the links provided, 
+In this case the Bluebook Archives on the RIDOT Website, and will
+save them to a folder in the directory it resides in, and will also
+rename the files to "YYYY_MM" format. To be distinguished by the other
+pages. This page is made to only to fetch the PDF files for further 
+processing.
 """
 
 # Function to download PDF from a URL
@@ -28,28 +34,24 @@ def download_pdf(url):
     else:
         print(f"Failed to download Bluebook from URL: {url}")
 
+
 # Function to extract year and month from a filename
 def get_year_and_month(filename):
     # Remove the file extension from the filename
     filename = os.path.splitext(filename)[0]
-    
     # Regular expression to find MM and YYYY or MM and YY patterns
     match = re.search(r'(\d{2})[_-](\d{4})', filename)  # Match MM_YYYY or MM-YYYY
     if match:
         return match.group(2), match.group(1)
-    
     match = re.search(r'(\d{2})[_-](\d{2})', filename)  # Match MM_YY or MM-YY
     if match:
         return "20" + match.group(2), match.group(1)
-    
     return None, None  # Return None if year and month could not be extracted
 
-# List of PDF URLs to download
-pdf_urls = [
-    "https://www.dot.ri.gov/business/bluebook/docs/Blue_Book_02_2024.pdf",
-    "https://www.dot.ri.gov/business/bluebook/docs/Blue_Book_08_2023.pdf",
-    "https://www.dot.ri.gov/business/bluebook/docs/Blue_Book_12_2022.pdf",
-]
+# Load PDF URLs from JSON file
+with open("pdf_urls.json", "r") as file:
+    data = json.load(file)
+pdf_urls = data["urls"]
 
 # Create a directory to store the downloaded PDFs if it doesn't exist
 if not os.path.exists("bluebook_pdfs"):

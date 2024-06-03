@@ -6,9 +6,9 @@ import re
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 PDF_DIRECTORY = os.path.join(PROJECT_DIR, 'bluebook_pdfs')
 
-def fetch_part_titles(pdf_path):
+def extract_part_titles(pdf_path):
     """
-    Fetches the titles of the parts in the PDF.
+    Extracts the titles of the parts from the PDF's table of contents.
 
     Args:
     pdf_path (str): Path to the PDF file.
@@ -24,31 +24,29 @@ def fetch_part_titles(pdf_path):
                 part_titles.append(item[1])
     return part_titles
 
-def fetch_section_titles(pdf_path, part_title):
+def extract_section_titles(pdf_path, part_title):
     """
-    Fetches the section titles for a specified part in the PDF, marking those without subsections.
+    Extracts the section titles for a specified part from the PDF's table of contents.
 
     Args:
     pdf_path (str): Path to the PDF file.
-    part_title (str): The title of the part for which sections need to be fetched.
+    part_title (str): The title of the part for which sections need to be extracted.
 
     Returns:
-    list: A list of section titles under the specified part with a flag for sections without subsections.
+    list: A list of section titles under the specified part.
     """
     section_titles = []
     with fitz.open(pdf_path) as doc:
-        toc = doc.get_toc()  # Get the table of contents
-        part_regex = re.compile(r'^Part [0-9A-Z]+')  # Match part titles with numbers or letters
+        toc = doc.get_toc()  
+        part_regex = re.compile(r'^Part [0-9A-Z]+')  
         for item in toc:
-            if item[1] == part_title:  # Find the specified part title
-                start_index = toc.index(item)  # Get the index of the part title
+            if item[1] == part_title:  
+                start_index = toc.index(item)  
                 end_index = start_index + 1
-                # Collect section titles until the next part is encountered
                 while end_index < len(toc) and not part_regex.match(toc[end_index][1]):
                     if toc[end_index][1].startswith("SECTION"):
                         section_title = toc[end_index][1]
-                        # Check if there are subsections
-                        has_subsections = check_for_subsections(doc, toc, end_index)
+                        has_subsections = contains_subsections(doc, toc, end_index)
                         if not has_subsections:
                             section_title += " [No Subsections]"
                         section_titles.append(section_title)
@@ -57,9 +55,9 @@ def fetch_section_titles(pdf_path, part_title):
     return section_titles
 
 
-def check_for_subsections(doc, toc, section_index):
+def contains_subsections(doc, toc, section_index):
     """
-    Checks if a section has subsections by looking ahead in the table of contents.
+    Checks if a section has subsections by examining the table of contents.
 
     Args:
     doc (fitz.Document): The PDF document object.
@@ -69,10 +67,8 @@ def check_for_subsections(doc, toc, section_index):
     Returns:
     bool: True if subsections are found, False otherwise.
     """
-    # Starting page of the current section
     section_page = toc[section_index][2]
     end_page = doc.page_count
-    # Determine the end page for the current section by checking the next section or part
     if section_index + 1 < len(toc):
         for i in range(section_index + 1, len(toc)):
             if re.match(r'^Part \d+', toc[i][1]):
@@ -81,52 +77,44 @@ def check_for_subsections(doc, toc, section_index):
                 end_page = toc[i][2] - 1
                 break
     
-    # Look for subsection markers within the pages of the section
     for page_num in range(section_page - 1, end_page):
         page_text = doc.load_page(page_num).get_text("text")
         if re.search(r'\d+\.\d+', page_text):  # Simple pattern to identify subsections (e.g., 1.1, 1.2, etc.)
             return True
     return False
 
-
-
-
-def fetch_subtopics(pdf_path, section_number):
+def extract_subtopic_titles(pdf_path, section_number):
     """
-    Fetches the subtopics for a specified section in the PDF.
+    Extracts the titles of subtopics for a specified section from the PDF.
 
     Args:
     pdf_path (str): Path to the PDF file.
-    section_number (str): The number of the section for which subtopics need to be fetched.
+    section_number (str): The number of the section for which subtopic titles need to be extracted.
 
     Returns:
-    list: A list of subtopics under the specified section.
+    list: A list of subtopic titles under the specified section.
     """
-    subtopics = []
+    subtopic_titles = []
     first_subsection_found = False
     subsection_pattern = rf'^{section_number}\.\d+\s[A-Z].*$'
 
     with fitz.open(pdf_path) as doc:
         for page_num in range(len(doc)):
-            page_text = doc.load_page(page_num).get_text("text")  # Get text from the page
+            page_text = doc.load_page(page_num).get_text("text")  
             lines = page_text.split("\n")
             for line in lines:
                 line = line.strip()
                 match = re.match(subsection_pattern, line)
                 if match:
                     if not first_subsection_found:
-                        # Only accept the first subsection if it ends with .01
                         if re.match(rf'^{section_number}\.01\s', line):
                             first_subsection_found = True
-                            subtopic = line.rstrip('.')
-                            subtopics.append(subtopic)
+                            subtopic_title = line.rstrip('.')
+                            subtopic_titles.append(subtopic_title)
                     else:
-                        subtopic = line.rstrip('.')
-                        subtopics.append(subtopic)
-
-    if not subtopics:
-        print(f"No subsections found for SECTION {section_number}")
-    return subtopics
+                        subtopic_title = line.rstrip('.')
+                        subtopic_titles.append(subtopic_title)
+    return subtopic_titles
 
 
 if __name__ == "__main__":
@@ -134,28 +122,24 @@ if __name__ == "__main__":
     PDF_DIRECTORY = os.path.join(PROJECT_DIR, 'bluebook_pdfs')
     pdf_files = os.listdir(PDF_DIRECTORY)
     if pdf_files:
-        # Select the first PDF file
         pdf_path = os.path.join(PDF_DIRECTORY, pdf_files[2])
         print("PDF File selected:", pdf_files[2])
 
-        # Fetch and print part titles
-        part_titles = fetch_part_titles(pdf_path)
+        part_titles = extract_part_titles(pdf_path)
         print("Part Titles:")
         for title in part_titles:
             print(title)
 
-        # Test fetching section titles for a specific part (e.g., Part 100)
-        part_title_to_test = part_titles[10]  # Adjust index as needed
-        section_titles = fetch_section_titles(pdf_path, part_title_to_test)
+        part_title_to_test = part_titles[10]  # Adjust index as needed (Modify Part Number)
+        section_titles = extract_section_titles(pdf_path, part_title_to_test)
         print(f"\nSection Titles for {part_title_to_test} :")
         for title in section_titles:
             if "No Subsections" not in title:
                 print(title)
 
-        # Test fetching subtopics for a specific section (e.g., SECTION 101)
-        section_title_to_test = section_titles[5]  # Adjust index as needed
-        section_number_to_test = section_title_to_test.split()[1]  # Extract the section number (e.g., 102)
-        subtopics = fetch_subtopics(pdf_path, section_number_to_test)
+        section_title_to_test = section_titles[5]  # Adjust index as needed (Modify Section Number)
+        section_number_to_test = section_title_to_test.split()[1]  
+        subtopics = extract_subtopic_titles(pdf_path, section_number_to_test)
         print(f"\nSubtopics for {section_title_to_test} :")
         if subtopics:
             for subtopic in subtopics:
@@ -164,6 +148,3 @@ if __name__ == "__main__":
             print(f"No subsections found for {section_title_to_test}")
     else:
         print("No PDF files found in the directory.")
-
-
-
