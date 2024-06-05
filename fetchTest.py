@@ -2,6 +2,7 @@ import os
 import fitz  # PyMuPDF
 import re
 
+
 # Determine the path to the PDF directory relative to the current file
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 PDF_DIRECTORY = os.path.join(PROJECT_DIR, 'bluebook_pdfs')
@@ -130,6 +131,47 @@ def extract_subtopic_titles(pdf_path, section_number):
     return subtopic_titles
 
 
+def extract_subtopic_content(pdf_path, section_number, subtopic_number):
+    """
+    Extracts the content for a specified subtopic from the PDF.
+
+    Args:
+    pdf_path (str): Path to the PDF file.
+    section_number (str): The number of the section containing the subtopic.
+    subtopic_number (str): The number of the subtopic for which content needs to be extracted.
+
+    Returns:
+    str: The content of the specified subtopic.
+    """
+    subtopic_content = ""
+    subtopic_pattern = rf'^{section_number}\.{subtopic_number}\s+[A-Z][A-Za-z].*?$'
+    next_subtopic_pattern = rf'^{section_number}\.(\d+)\s+[A-Z][A-Za-z].*?$'
+
+    try:
+        with fitz.open(pdf_path) as doc:
+            start_extracting = False
+            for page_num in range(len(doc)):
+                page_text = doc.load_page(page_num).get_text("text")
+                lines = page_text.split("\n")
+                for line in lines:
+                    if re.match(subtopic_pattern, line):
+                        start_extracting = True
+                        continue  # Skip the line matching the subtopic title
+
+                    if start_extracting:
+                        if re.match(next_subtopic_pattern, line):
+                            # Stop collecting content if the next subtopic title is encountered
+                            start_extracting = False
+                            break
+                        subtopic_content += line + "\n"
+
+    except Exception as e:
+        print("Error:", e)
+        subtopic_content = "Error occurred while processing the document."
+
+    return subtopic_content.strip()
+
+
 
 if __name__ == "__main__":
     PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -144,14 +186,14 @@ if __name__ == "__main__":
         for title in part_titles:
             print(title)
 
-        part_title_to_test = part_titles[10]  # Adjust index as needed (Modify Part Number)
+        part_title_to_test = part_titles[0]  # Adjust index as needed (Modify Part Number)
         section_titles = extract_section_titles(pdf_path, part_title_to_test)
         print(f"\nSection Titles for {part_title_to_test} :")
         for title in section_titles:
             if "No Subsections" not in title:
                 print(title)
 
-        section_title_to_test = section_titles[5]  # Adjust index as needed (Modify Section Number)
+        section_title_to_test = section_titles[0]  # Adjust index as needed (Modify Section Number)
         section_number_to_test = section_title_to_test.split()[1]  
         subtopics = extract_subtopic_titles(pdf_path, section_number_to_test)
         print(f"\nSubtopics for {section_title_to_test} :")
@@ -160,5 +202,10 @@ if __name__ == "__main__":
                 print(subtopic)
         else:
             print(f"No subsections found for {section_title_to_test}")
+
+        section_number = "101"
+        subtopic_number = "01"  # Adjust subtopic number as needed
+        subtopic_content = extract_subtopic_content(pdf_path, section_number, subtopic_number)
+        print("Content for subtopic", section_number + "." + subtopic_number, ":", subtopic_content)
     else:
         print("No PDF files found in the directory.")
