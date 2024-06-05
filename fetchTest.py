@@ -83,6 +83,7 @@ def contains_subsections(doc, toc, section_index):
             return True
     return False
 
+
 def extract_subtopic_titles(pdf_path, section_number):
     """
     Extracts the titles of subtopics for a specified section from the PDF.
@@ -100,21 +101,34 @@ def extract_subtopic_titles(pdf_path, section_number):
 
     with fitz.open(pdf_path) as doc:
         for page_num in range(len(doc)):
-            page_text = doc.load_page(page_num).get_text("text")  
+            page_text = doc.load_page(page_num).get_text("text")
             lines = page_text.split("\n")
-            for line in lines:
-                line = line.strip()
+            combined_lines = []
+
+            # Combine lines where the section number and title are separated by a newline
+            for i in range(len(lines)):
+                if re.match(rf'^{section_number}\.\d+$', lines[i].strip()):
+                    if i + 1 < len(lines) and re.match(r'^[A-Z]', lines[i + 1].strip()):
+                        combined_lines.append(lines[i].strip() + " " + lines[i + 1].strip())
+                        continue
+                combined_lines.append(lines[i].strip())
+
+            for line in combined_lines:
                 match = re.match(subsection_pattern, line)
                 if match:
                     if not first_subsection_found:
-                        if re.match(rf'^{section_number}\.01\s', line):
+                        # Start collecting subtopics from .01 onwards where the title starts with at least two capital letters
+                        if re.match(rf'^{section_number}\.01\s+[A-Z][A-Z].*$', line):
                             first_subsection_found = True
                             subtopic_title = line.rstrip('.')
                             subtopic_titles.append(subtopic_title)
                     else:
-                        subtopic_title = line.rstrip('.')
-                        subtopic_titles.append(subtopic_title)
+                        # Continue collecting subtopics if the title starts with at least two capital letters
+                        if re.match(r'^[A-Z][A-Z].*$', line.split(maxsplit=1)[1]):
+                            subtopic_title = line.rstrip('.')
+                            subtopic_titles.append(subtopic_title)
     return subtopic_titles
+
 
 
 if __name__ == "__main__":
