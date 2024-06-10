@@ -146,6 +146,8 @@ def extract_subtopic_content(pdf_path, section_number, subtopic_number):
     subtopic_content = ""
     subtopic_pattern = rf'^{section_number}\.{subtopic_number}\s+[A-Z][A-Za-z].*?$'
     next_subtopic_pattern = rf'^{section_number}\.(\d+)\s+[A-Z][A-Za-z].*?$'
+    end_of_part_pattern = r'^Part\s+[A-Z0-9]+\s+—\s+.*$'
+    next_section_pattern = r'^SECTION\s+[A-Z0-9]+\s+—\s+.*$'
 
     try:
         with fitz.open(pdf_path) as doc:
@@ -153,14 +155,24 @@ def extract_subtopic_content(pdf_path, section_number, subtopic_number):
             for page_num in range(len(doc)):
                 page_text = doc.load_page(page_num).get_text("text")
                 lines = page_text.split("\n")
-                for line in lines:
+                combined_lines = []
+
+                # Combine lines where the subtopic number and title are separated by a newline
+                for i in range(len(lines)):
+                    if re.match(rf'^{section_number}\.\d+$', lines[i].strip()):
+                        if i + 1 < len(lines) and re.match(r'^[A-Z]', lines[i + 1].strip()):
+                            combined_lines.append(lines[i].strip() + " " + lines[i + 1].strip())
+                            continue
+                    combined_lines.append(lines[i].strip())
+
+                for line in combined_lines:
                     if re.match(subtopic_pattern, line):
                         start_extracting = True
                         continue  # Skip the line matching the subtopic title
 
                     if start_extracting:
-                        if re.match(next_subtopic_pattern, line):
-                            # Stop collecting content if the next subtopic title is encountered
+                        if re.match(next_subtopic_pattern, line) or re.match(end_of_part_pattern, line) or re.match(next_section_pattern, line):
+                            # Stop collecting content if the next subtopic title, end of part title, or next section title is encountered
                             start_extracting = False
                             break
                         subtopic_content += line + "\n"
@@ -170,6 +182,7 @@ def extract_subtopic_content(pdf_path, section_number, subtopic_number):
         subtopic_content = "Error occurred while processing the document."
 
     return subtopic_content.strip()
+
 
 
 
@@ -186,7 +199,7 @@ if __name__ == "__main__":
         for title in part_titles:
             print(title)
 
-        part_title_to_test = part_titles[0]  # Adjust index as needed (Modify Part Number)
+        part_title_to_test = part_titles[10]  # Adjust index as needed (Modify Part Number)
         section_titles = extract_section_titles(pdf_path, part_title_to_test)
         print(f"\nSection Titles for {part_title_to_test} :")
         for title in section_titles:
@@ -203,7 +216,7 @@ if __name__ == "__main__":
         else:
             print(f"No subsections found for {section_title_to_test}")
 
-        section_number = "101"
+        section_number = "M01"
         subtopic_number = "01"  # Adjust subtopic number as needed
         subtopic_content = extract_subtopic_content(pdf_path, section_number, subtopic_number)
         print("Content for subtopic", section_number + "." + subtopic_number, ":", subtopic_content)

@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 import os
-from fetchTest import extract_part_titles, extract_section_titles, extract_subtopic_titles
+from fetchTest import extract_part_titles, extract_section_titles, extract_subtopic_titles, extract_subtopic_content
 from datetime import datetime
 
 app = Flask(__name__)
@@ -60,6 +60,20 @@ def get_subsections():
         return jsonify(subtopics)
     else:
         return jsonify([])
+    
+@app.route('/get_subtopic_content', methods=['POST'])
+def get_subtopic_content():
+    if request.method == 'POST':
+        pdf_file = request.form['pdf_file']
+        section_number = request.form['section_number']
+        subtopic_number = request.form['subtopic_number']
+        pdf_path = os.path.join(PDF_DIRECTORY, pdf_file)
+        # Extract subtopic content
+        subtopic_content = extract_subtopic_content(pdf_path, section_number, subtopic_number)
+        return subtopic_content
+    else:
+        return jsonify({'error': 'Invalid request method'})
+
 
 if __name__ == '__main__':
     app.run(debug=True)

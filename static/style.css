@@ -89,3 +89,41 @@ h1, h2, h3 {
 .button:hover {
     background-color: #45a049; /* darker green on hover */
 }
+
+#subtopic-content {
+    margin-top: 20px; /* Adjust as needed */
+    background-color: #f2f2f2;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 20px;
+    width: 80%;
+    max-width: 800px; /* Adjust as needed */
+}
+
+/* Style for submit button */
+#submit-btn {
+    background-color: #007bff; /* Blue background */
+    border: none; /* Remove border */
+    color: white; /* White text */
+    padding: 12px 24px; /* Padding */
+    text-align: center; /* Center text */
+    text-decoration: none; /* Remove underline */
+    display: inline-block; /* Display as inline block */
+    font-size: 16px; /* Font size */
+    margin: 10px; /* Margin */
+    cursor: pointer; /* Cursor on hover */
+    border-radius: 5px; /* Rounded corners */
+    transition: background-color 0.3s; /* Smooth transition */
+    opacity: 1; /* Default opacity */
+}
+
+/* Hover effect */
+#submit-btn:hover {
+    background-color: #0056b3; /* Darker blue on hover */
+}
+
+/* Lower opacity when button is disabled */
+#submit-btn:disabled {
+    opacity: 0.5; /* Reduced opacity */
+}
+
