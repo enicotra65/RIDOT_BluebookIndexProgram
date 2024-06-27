@@ -1,0 +1,127 @@
+def extract_subtopic_content(pdf_path, section_number, subtopic_number):
+    """
+    Extracts the content for a specified subtopic from the PDF.
+
+    Args:
+    pdf_path (str): Path to the PDF file.
+    section_number (str): The number of the section containing the subtopic.
+    subtopic_number (str): The number of the subtopic for which content needs to be extracted.
+
+    Returns:
+    str: The content of the specified subtopic.
+    """
+    subtopic_content = ""
+    subtopic_pattern = rf'^{section_number}\.{subtopic_number}\s+[A-Z][A-Za-z].*?$'
+    next_subtopic_pattern = rf'^{section_number}\.(\d+)\s+[A-Z][A-Za-z].*?$'
+
+    try:
+        with fitz.open(pdf_path) as doc:
+            start_extracting = False
+            for page_num in range(len(doc)):
+                page_text = doc.load_page(page_num).get_text("text")
+                lines = page_text.split("\n")
+                combined_lines = []
+
+                # Combine lines where the subtopic number and title are separated by a newline
+                for i in range(len(lines)):
+                    if re.match(rf'^{section_number}\.\d+$', lines[i].strip()):
+                        if i + 1 < len(lines) and re.match(r'^[A-Z]', lines[i + 1].strip()):
+                            combined_lines.append(lines[i].strip() + " " + lines[i + 1].strip())
+                            continue
+                    combined_lines.append(lines[i].strip())
+
+                for line in combined_lines:
+                    if re.match(subtopic_pattern, line):
+                        start_extracting = True
+                        continue  # Skip the line matching the subtopic title
+
+                    if start_extracting:
+                        # Stop collecting content if the next subtopic title is encountered
+                        if re.match(next_subtopic_pattern, line):
+                            start_extracting = False
+                            break
+                        subtopic_content += line + "\n"
+    except Exception as e:
+        print("Error:", e)
+        subtopic_content = "Error occurred while processing the document."
+
+    #process raw text to be formatted
+    final_text = format_text(subtopic_content, pdf_path, section_number)
+
+    return final_text
+
+
+def format_text(raw_text, pdf_path, section_number):
+    """
+    Formats the raw text by removing date and page numbers, part titles, section titles, 
+    adding newlines before bullet points and lettered lists, and formatting acronyms and abbreviations.
+
+    Args:
+    raw_text (str): The raw text to be formatted.
+    pdf_path (str): Path to the PDF file for extracting date.
+    section_number (str): The number of the section containing the subtopic.
+
+    Returns:
+    str: The formatted text.
+    """
+    # Extract date from filename
+    pdf_filename = os.path.basename(pdf_path)
+    base_filename = os.path.splitext(pdf_filename)[0]
+    match = re.match(r'(\d{4})_(\d{2})', base_filename)
+    if match:
+        year, month = match.groups()
+        date_string = datetime.strptime(f"{year}_{month}", "%Y_%m").strftime("%B %Y")
+    else:
+        date_string = ""
+
+    # Determine the current part number
+    current_part_number = section_number[0] + "00" if section_number[0].isdigit() else section_number[0]
+
+    # Define regex patterns
+    patterns_to_remove = [
+        rf'{date_string}',
+        rf'{current_part_number}-\d{{1,2}}',
+        rf'Part\s+{current_part_number}\s+—\s+.*$',
+        rf'SECTION\s+{section_number}\s+—\s+.*$',
+    ]
+    
+    # Compile the patterns
+    compiled_patterns = [re.compile(pattern, flags=re.MULTILINE) for pattern in patterns_to_remove]
+    
+    # Function to apply all patterns
+    def remove_patterns(text, patterns):
+        for pattern in patterns:
+            text = pattern.sub('', text)
+        return text
+
+    # Apply the patterns
+    filtered_text = remove_patterns(raw_text, compiled_patterns)
+    
+    # Additional text processing steps
+    transformations = [
+        (r'\n{2,}', '\n\n'),                                        # Removes large amounts of white space caused by page breaks
+        (r'\n\n', '\n'),                                            # Removes unnecessary newlines at the start of a new page
+        (r'([•●○])\s*', r'\1 '),                                    # Adjusts bullet points to be on the same line as the text following them
+        #(r'([A-Z]{2,})\n\s*([A-Z][^\n]+)', r'\1 - \2'),            # Formats acronyms and abbreviations with a hyphen
+        (r'\n([a-z]\.)\s*', r'\n\n\1 '),                            # Ensures lettered lists start on a new line and keep their text on the same line        (r'\n([a-z]\.)\s*', r' \1 '),                               # Ensure lettered lists start on the same line as their letter
+        (r'^.*\.{6,}.*$', '', re.MULTILINE),                        # Removes TOC title with following periods (assuming it's at the beginning or end)
+        (r'([•●○])\s*', r'\n\t\1 ', re.MULTILINE),                  # Indents wrapped lines under bullet points
+        (r'\n\t([^\n]+)', r'\n\t\1', re.MULTILINE),                 # Indents subsequent lines after the indented bullet point  
+        (r"(?<!\b)\n(?=[A-Z][^.!?\s]*?\b)", r"\n\n", re.MULTILINE), # Adds a newline inbetween all lines that have a \n followed by a Capital Letter (excluding bullet points)
+        (r"\n\t○", r"\n\t\t\t○", re.MULTILINE),
+    ]
+    
+    # Apply the transformations
+    for pattern, replacement, *flags in transformations:
+        filtered_text = re.sub(pattern, replacement, filtered_text, flags=flags[0] if flags else 0)
+        print("After regex transformations:", filtered_text)  # Print intermediate result
+
+    
+    # Stop at the next section or part title
+    next_section_pattern = rf'SECTION\s+\d+.*'
+    next_part_pattern = rf'Part\s+\d+.*'
+    stop_pattern = rf'({next_section_pattern}|{next_part_pattern})'
+    split_text = re.split(stop_pattern, filtered_text)
+    filtered_text = split_text[0] if split_text else filtered_text
+
+    return filtered_text.strip()

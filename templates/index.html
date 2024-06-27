@@ -1,134 +1,56 @@
 {% extends "base.html" %}
+{% block title %}Bluebook Reference Tool{% endblock %}
 
-{% block title %}RIDOT Bluebook Index Program{% endblock %}
-
-{% block content %}
-<div class="dropdown-container">
-    <center><h1>RIDOT Bluebook Index</h1></center>
-    <form id="pdf-form">
-        <!-- Dropdown for selecting PDF -->
-        <label for="pdf-select">Select Bluebook:</label>
-        <select id="pdf-select" name="pdf_file">
-            <option value="">--Select PDF--</option>
-            {% for pdf_info in pdf_files %}
-            <option value="{{ pdf_info.file }}">{{ pdf_info.name }}</option>
-            {% endfor %}
-        </select>
-
-        <br><br>
-        <!-- Loop to generate select dropdowns for Part, Section, and Subsection -->
-        {% set selects = [
-            {'id': 'part', 'label': 'Part'},
-            {'id': 'section', 'label': 'Section'},
-            {'id': 'subsection', 'label': 'Subsection'}
-        ] %}
-        
-        {% for select in selects %}
-        <label for="{{ select.id }}-select" id="{{ select.id }}-label" class="disabled-label">Select {{ select.label }}:</label>
-        <select class="dropdown-select" id="{{ select.id }}-select" name="{{ select.id }}_title" disabled>
-            <option value="">--Select {{ select.label }}--</option>
-        </select>
-        <br><br>
-        {% endfor %}
-        <!-- Submit button -->
-       <center><button id="submit-btn" type="button" disabled>Submit</button></center>
-    </form>
-    
-    <!-- Div to display fetched content -->
-    <br><br> <!-- Add space between the form and the content -->
-    <div class="dropdown-container" id="subtopic-content">
-
-    </div>
-</div>
-
-
-<script>
-    $(document).ready(function () {
-        // Function to reset a select dropdown and its label
-        const resetSelect = (selectId, labelId) => {
-            $(selectId).empty().prop('disabled', true).append($('<option>', { value: '', text: '--Select--' }));
-            $(labelId).addClass('disabled-label');
-        };
-
-        // Function to populate a select dropdown
-        const populateSelect = (url, data, selectId, labelId, formatOption = item => item) => {
-            $.post(url, data, function(response) {
-                $(selectId).prop('disabled', false).empty().append($('<option>', { value: '', text: '--Select--' }));
-                response.forEach(item => $(selectId).append($('<option>', { value: formatOption(item), text: item })));
-                $(labelId).removeClass('disabled-label');
-            });
-        };
-
-        // Function to check if all dropdowns are filled
-        const checkDropdowns = () => {
-            const allSelected = $('.dropdown-select').toArray().every(select => $(select).val());
-            $('#submit-btn').prop('disabled', !allSelected);
-        };
-
-        // Event handler for changing the PDF selection
-        $('#pdf-select').change(function () {
-            const pdfFile = $(this).val();
-            // Reset all select dropdowns except PDF
-            ['.section-select', '.subsection-select'].forEach(id => resetSelect(id, $(id + '-label')));
-            if (pdfFile) {
-                // Populate Part dropdown based on selected PDF
-                populateSelect('/get_part_titles', { pdf_file: pdfFile }, '#part-select', '#part-label');
-            }
-            checkDropdowns();
-        });
-
-        // Event handler for changing the Part selection
-        $('#part-select').change(function () {
-            const partTitle = $(this).val();
-            // Reset Section and Subsection dropdowns
-            resetSelect('#section-select', '#section-label');
-            resetSelect('#subsection-select', '#subsection-label');
-            if (partTitle) {
-                // Populate Section dropdown based on selected Part
-                const pdfFile = $('#pdf-select').val();
-                populateSelect('/get_section_titles', { pdf_file: pdfFile, part_title: partTitle }, '#section-select', '#section-label', item => item.split(' ')[1]);
-            }
-            checkDropdowns();
-        });
-
-        // Event handler for changing the Section selection
-        $('#section-select').change(function () {
-            const sectionNumber = $(this).val();
-            // Reset Subsection dropdown
-            resetSelect('#subsection-select', '#subsection-label');
-            if (sectionNumber) {
-                // Populate Subsection dropdown based on selected Section
-                const pdfFile = $('#pdf-select').val();
-                populateSelect('/get_subsections', { pdf_file: pdfFile, section_number: sectionNumber }, '#subsection-select', '#subsection-label');
-            }
-            checkDropdowns();
-        });
-
-        // Event handler for changing the Subsection selection
-        $('#subsection-select').change(function () {
-            checkDropdowns();
-        });
-
-        // Event handler for submit button click
-        $('#submit-btn').click(function () {
-            // Retrieve selected values from dropdown menus
-            const pdfFile = $('#pdf-select').val();
-            const partTitle = $('#part-select').val();
-            const sectionNumber = $('#section-select').val();
-            const subsectionTitle = $('#subsection-select').val(); // This contains the displayed text
-    
-            // Extract the subtopic number from the subsection title
-            const subtopicNumber = subsectionTitle.split('.')[1].slice(0, 2); // Split by period and take first two characters after the period
-
-            // Perform action to fetch content based on selected options
-            $.post('/get_subtopic_content', { pdf_file: pdfFile, section_number: sectionNumber, subtopic_number: subtopicNumber }, function(response) {
-                // Display content on the page
-                $('#subtopic-content').text(response);
-            });
-        });
-    });
-</script>
-
+{% block head %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
 {% endblock %}
 
+{% block content %}
+<div class="container">
+    <h1>Bluebook Reference Tool</h1>
 
+    <form id="pdf-form">
+        <!-- Dropdown for selecting PDF -->
+        <div class="form-group">
+            <label for="pdf-select">Bluebook PDF's:</label>
+            <select id="pdf-select" name="pdf_file">
+                <option value="">--Select PDF--</option>
+                {% for pdf_file in pdf_files %}
+                <option value="{{ pdf_file.file }}">{{ pdf_file.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Reference options -->
+        <div id="reference-options" style="display: none;">
+            <div class="form-group">
+                <label><input type="radio" name="reference-type" value="part"> Part</label>
+            </div>
+            <div class="form-group">
+                <label><input type="radio" name="reference-type" value="section"> Section</label>
+            </div>
+            <div class="form-group">
+                <label><input type="radio" name="reference-type" value="subsection"> Subsection</label>
+            </div>
+        </div>
+
+        <!-- Dropdowns -->
+        <div id="dropdowns">
+            <!-- Part, Section, Subsection dropdowns -->
+            {% for dropdown in ['part', 'section', 'subsection'] %}
+            <div id="{{ dropdown }}-dropdown" class="form-group" style="display: none;">
+                <label for="{{ dropdown }}-select">Select {{ dropdown|capitalize }}:</label>
+                <select id="{{ dropdown }}-select" name="{{ dropdown }}-select" {% if dropdown != 'part' %}disabled{% endif %}>
+                    <option value="" selected disabled>--Select {{ dropdown|capitalize }}--</option>
+                </select>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Submit button -->
+        <button id="submit-btn" disabled>Submit</button>
+    </form>
+</div>
+{% endblock %}

@@ -1,16 +1,46 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 import os
-from fetchTest import extract_part_titles, extract_section_titles, extract_subtopic_titles, extract_subtopic_content
 from datetime import datetime
+from reference import extract_part, extract_section, extract_subsection
+import subprocess
 
 app = Flask(__name__)
 
 # Path to the PDF directory
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 PDF_DIRECTORY = os.path.join(PROJECT_DIR, 'bluebook_pdfs')
+STATIC_DIRECTORY = os.path.join(PROJECT_DIR, 'static')
+
+def check_and_fetch_bluebooks():
+    """
+    Check if 'bluebook_pdfs' directory exists. If not, fetch Bluebooks using fetchBluebook.py.
+    """
+    if not os.path.exists(PDF_DIRECTORY):
+        print("'bluebook_pdfs' directory does not exist. Fetching Bluebooks...")
+        try:
+            subprocess.run(['python', 'fetchBluebook.py'], check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error fetching Bluebooks: {e}")
+            return False
+    else:
+        print("'bluebook_pdfs' directory already exists.")
+
+    return True
+
+def setup_application():
+    """
+    Setup application by fetching Bluebooks if necessary.
+    """
+    if not check_and_fetch_bluebooks():
+        return False
+    
+    return True
 
 @app.route('/')
 def index():
+    if not setup_application():
+        return "Failed to setup application. Check logs for details."
+
     # List and prepare PDF files for display
     pdf_files = os.listdir(PDF_DIRECTORY)
     if pdf_files:
@@ -27,54 +57,55 @@ def index():
 
 @app.route('/get_part_titles', methods=['POST'])
 def get_part_titles():
-    if request.method == 'POST':
-        pdf_file = request.form['pdf_file']
-        pdf_path = os.path.join(PDF_DIRECTORY, pdf_file)
-        # Extract part titles
-        part_titles = extract_part_titles(pdf_path)
-        return jsonify(part_titles)
-    else:
-        return jsonify([])
+    pdf_file = request.form.get('pdf_file')
+    pdf_path = os.path.join(PDF_DIRECTORY, pdf_file)
+    parts = extract_part(pdf_path)
+    return jsonify(parts)
 
-@app.route('/get_section_titles', methods=['POST'])
-def get_section_titles():
-    if request.method == 'POST':
-        pdf_file = request.form['pdf_file']
-        part_title = request.form['part_title']
-        pdf_path = os.path.join(PDF_DIRECTORY, pdf_file)
-        # Extract section titles and filter out sections without subsections
-        section_titles = extract_section_titles(pdf_path, part_title)
-        section_titles = [title for title in section_titles if not title.endswith("[No Subsections]")]
-        return jsonify(section_titles)
-    else:
-        return jsonify([])
+@app.route('/get_sections', methods=['GET'])
+def get_sections():
+    """
+    Endpoint to fetch sections for a selected part in a PDF.
+    """
+    pdf_selected = request.args.get('pdf_selected')
+    part_selected = request.args.get('part_selected')
+    pdf_path = os.path.join(PDF_DIRECTORY, pdf_selected)
 
-@app.route('/get_subsections', methods=['POST'])
-def get_subsections():
-    if request.method == 'POST':
-        pdf_file = request.form['pdf_file']
-        section_number = request.form['section_number']
-        pdf_path = os.path.join(PDF_DIRECTORY, pdf_file)
-        # Extract subtopics for the section
-        subtopics = extract_subtopic_titles(pdf_path, section_number)
-        return jsonify(subtopics)
-    else:
-        return jsonify([])
+    sections = extract_section(pdf_path, part_selected)
+
+    # Filter out sections containing "[No Subsections]"
+    filtered_sections = [section for section in sections if not section['title'].endswith('[No Subsections]')]
+
+    section_options = ""
+    for section in filtered_sections:
+        section_options += f"<option value='{section['page_number']}'>{section['title']}</option>"
     
-@app.route('/get_subtopic_content', methods=['POST'])
-def get_subtopic_content():
-    if request.method == 'POST':
-        pdf_file = request.form['pdf_file']
-        section_number = request.form['section_number']
-        subtopic_number = request.form['subtopic_number']
-        pdf_path = os.path.join(PDF_DIRECTORY, pdf_file)
-        # Extract subtopic content
-        subtopic_content = extract_subtopic_content(pdf_path, section_number, subtopic_number)
-        return subtopic_content
-    else:
-        return jsonify({'error': 'Invalid request method'})
+    return section_options
 
+@app.route('/get_subsections', methods=['GET'])
+def get_subsections():
+    pdf_selected = request.args.get('pdf_selected')
+    section_selected = request.args.get('section_selected')
+    pdf_path = os.path.join(PDF_DIRECTORY, pdf_selected)
 
-if __name__ == '__main__':
+    # Ensure the section_selected is in the correct format
+    try:
+        section_number = section_selected.split()[1]
+    except IndexError:
+        return "Invalid section format", 400  # Return a 400 Bad Request error if format is incorrect
+
+    subsections = extract_subsection(pdf_path, section_number)
+
+    subsection_options = ""
+    for subsection in subsections:
+        subsection_options += f"<option value='{subsection['page_number']}'>{subsection['title']}</option>"
+
+    return subsection_options
+
+@app.route('/pdf_urls.json')
+def pdf_urls():
+    return send_from_directory(STATIC_DIRECTORY, 'pdf_urls.json')
+
+if __name__ == "__main__":
     app.run(debug=True)
 
