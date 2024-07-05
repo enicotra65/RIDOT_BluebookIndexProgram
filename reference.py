@@ -18,7 +18,6 @@ def extract_part(pdf_path):
     Returns:
     list: A list of dictionaries containing part titles and their respective page numbers.
     """
-    print(pdf_path)
     part_info = []
     with fitz.open(pdf_path) as doc:
         toc = doc.get_toc()
@@ -57,6 +56,8 @@ def extract_section(pdf_path, part_title):
                 break
     return section_info
 
+    
+
 def contains_subsections(doc, toc, section_index):
     """
     Checks if a section has subsections by examining the table of contents.
@@ -86,6 +87,8 @@ def contains_subsections(doc, toc, section_index):
             return True
     
     return False
+
+
 
 def extract_subsection(pdf_path, section_number):
     """

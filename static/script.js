@@ -119,6 +119,3 @@ $(document).ready(function () {
         else alert('PDF link not found.');
     });
 });
-
-
-
