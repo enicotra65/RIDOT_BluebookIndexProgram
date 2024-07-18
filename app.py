@@ -1,3 +1,4 @@
+import sys
 from flask import Flask, render_template, request, jsonify, send_from_directory
 import os
 from datetime import datetime
@@ -10,6 +11,29 @@ app = Flask(__name__)
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 PDF_DIRECTORY = os.path.join(PROJECT_DIR, 'bluebook_pdfs')
 STATIC_DIRECTORY = os.path.join(PROJECT_DIR, 'static')
+REQUIREMENTS_FILE = os.path.join(PROJECT_DIR, 'requirements.txt')
+
+def install(package):
+    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+
+def check_and_install_dependencies():
+    """
+    Check if required dependencies are installed. If not, install them from requirements.txt.
+    """
+    try:
+        import flask
+        import fitz
+        print("All required dependencies are installed.")
+        return True
+    except ImportError:
+        print("Dependencies missing. Installing dependencies...")
+        if os.path.exists(REQUIREMENTS_FILE):
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", REQUIREMENTS_FILE])
+            print("Dependencies installed.")
+            return True
+        else:
+            print("requirements.txt file not found. Unable to install dependencies.")
+            return False
 
 def check_and_fetch_bluebooks():
     """
@@ -18,19 +42,23 @@ def check_and_fetch_bluebooks():
     if not os.path.exists(PDF_DIRECTORY):
         print("'bluebook_pdfs' directory does not exist. Fetching Bluebooks...")
         try:
-            subprocess.run(['python', 'fetchBluebook.py'], check=True)
+            subprocess.run([sys.executable, 'fetchBluebook.py'], check=True)
+            print("Bluebooks fetched successfully.")
+            return True
         except subprocess.CalledProcessError as e:
-            print(f"Error fetching Bluebooks: {e}")
+            print(f"Failed to fetch Bluebooks: {e}")
             return False
     else:
-        print("'bluebook_pdfs' directory already exists.")
-
-    return True
+        print("Bluebooks are already available.")
+        return True
 
 def setup_application():
     """
-    Setup application by fetching Bluebooks if necessary.
+    Setup application by checking dependencies and fetching Bluebooks if necessary.
     """
+    if not check_and_install_dependencies():
+        return False
+    
     if not check_and_fetch_bluebooks():
         return False
     
@@ -107,5 +135,9 @@ def pdf_urls():
     return send_from_directory(STATIC_DIRECTORY, 'pdf_urls.json')
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    if setup_application():
+        print("Application setup successfully.")
+        app.run(debug=True)
+    else:
+        print("Application setup failed.")
 

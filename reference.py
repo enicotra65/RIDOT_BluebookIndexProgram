@@ -1,8 +1,9 @@
 import os
-import fitz  # PyMuPDF
+import fitz
 import re
 import json
 from datetime import datetime
+
 
 # Determine the path to the PDF directory relative to the current file
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
