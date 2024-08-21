@@ -1,10 +1,24 @@
 @echo off
 
-:: Path to your virtual environment
-set VENV_PATH=C:\Users\evans\PycharmProjects\RIDOT_BluebookIndexProgram\venv
+:: Dynamically find the virtual environment directory
+setlocal enabledelayedexpansion
+
+set "VENV_DIR="
+for /d %%D in ("%~dp0\*") do (
+    if exist "%%D\Scripts\activate.bat" (
+        set "VENV_DIR=%%D"
+        goto :found
+    )
+)
+
+:found
+if not defined VENV_DIR (
+    echo Virtual environment not found.
+    exit /b 1
+)
 
 :: Activate the virtual environment
-call %VENV_PATH%\Scripts\activate.bat
+call "%VENV_DIR%\Scripts\activate.bat"
 
-:: Run your Flask application
+:: Run the Flask application
 python app.py
