@@ -1,11 +1,27 @@
-import sys
-from flask import Flask, render_template, request, jsonify, send_from_directory
 import os
-from datetime import datetime
-from reference import extract_part, extract_section, extract_subsection
+import sys
 import subprocess
 
-app = Flask(__name__)
+# Path to the batch script
+SCRIPT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'openvenv.bat')
+
+# Check if the script is running within the virtual environment
+if os.getenv('VIRTUAL_ENV'):
+    print("Running inside the virtual environment.")
+    print(f"Virtual environment path: {os.getenv('VIRTUAL_ENV')}")
+else:
+    print("Not running inside the virtual environment.")
+    print("Attempting to activate the virtual environment...")
+
+    # Execute the batch script to activate the virtual environment and run the app
+    subprocess.run([SCRIPT_PATH])
+
+    # Exit to prevent the rest of the script from running outside the venv
+    sys.exit(0)
+
+from flask import Flask, render_template, request, jsonify, send_from_directory
+from datetime import datetime
+from reference import extract_part, extract_section, extract_subsection
 
 # Path to the PDF directory
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -63,6 +79,8 @@ def setup_application():
         return False
     
     return True
+
+app = Flask(__name__)
 
 @app.route('/')
 def index():
@@ -135,9 +153,11 @@ def pdf_urls():
     return send_from_directory(STATIC_DIRECTORY, 'pdf_urls.json')
 
 if __name__ == "__main__":
+    print("Starting the Flask application...")
+    app.run(debug=True)
+
     if setup_application():
         print("Application setup successfully.")
         app.run(debug=True)
     else:
         print("Application setup failed.")
-
